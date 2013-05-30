@@ -59,13 +59,26 @@ describe "Authentication" do
 			describe "when attempting to visit a protected page" do
 				before do
 					visit edit_user_path(user)
-					fill_in "Email", with: user.email
-					fill_in "Password", with: user.password
-					click_button "Sign in"
+					# fill_in "Email", with: user.email
+					# fill_in "Password", with: user.password
+					# click_button "Sign in"
+					valid_signin(user)
 				end
 				describe "after signing in" do
 					it "should render the desired protected page" do
 						page.should have_selector('title', text: 'Edit user')
+					end
+
+					describe "when signing in again" do
+						before do
+							delete signout_path
+							visit signin_path
+							valid_signin(user)
+						end
+						
+						it "should render the default (profile) page" do
+							page.should have_selector('title', text: user.name)
+						end
 					end
 				end
 			end
@@ -83,6 +96,15 @@ describe "Authentication" do
 				describe "visiting the user index" do
 					before { visit users_path }
 					it { should have_selector('title', text: 'Sign in') }
+				end
+
+				describe "visiting the home page" do
+					before { visit root_path }
+					it { should_not have_link('Users', href: users_path) }
+					it { should_not have_link('Profile', href: user_path(user)) }
+					it { should_not have_link('Settings', href: edit_user_path(user)) }
+					it { should_not have_link('Sign out', href: signout_path) }
+					it { should have_link('Sign in', href: signin_path) }
 				end
 			end
 		end
@@ -110,5 +132,34 @@ describe "Authentication" do
 				specify { response.should redirect_to(root_path) }
 			end
 		end
+
+		describe "as admin user" do
+		    let(:admin) { FactoryGirl.create(:admin) }
+		    before { valid_signin admin }
+
+		    describe "can't delete self by submitting DELETE request to Users#destroy" do
+		      before { delete user_path(admin) }
+		      specify { response.should redirect_to(users_path), 
+		                  flash[:error].should =~ /Can not delete own admin account!/i }
+		      # it { should have_selector('div.alert.alert-error', text: 'delete own admin') }
+				# it { should have_selector('title', text: admin.name) }
+				# it { should have_selector('h1', text: admin.name) }
+		   end
+		end
+
+		describe "for signed in users" do
+	      let(:user) { FactoryGirl.create(:user) }
+	      before { valid_signin user }
+
+	      describe "using a 'new' action" do
+	          before { get new_user_path }
+	          specify { response.should redirect_to(root_path) }
+	      end
+
+	      describe "using a 'create' action" do
+	          before { post users_path }
+	          specify { response.should redirect_to(root_path) }
+	      end         
+       end
 	end
 end
